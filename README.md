@@ -22,6 +22,74 @@ maintains it.
 - **The suite decides what is scored.** An official run uses only a commit of this adapter that the
   suite's maintainers have reviewed as pass-through, whoever wrote it.
 
+## Overview
+
+[`src/main.rs`](src/main.rs) answers each function with solidcore's one call for it, as
+[the contract](https://github.com/springcraft-ai/brep-conformance/blob/main/doc/contract.md#what-an-adapter-may-do)
+asks, and lists the rest as unsupported. It builds the suite's box, cylinder, ball, ring and frustum
+with solidcore's primitives; its extrusions and revolutions as linear and rotational sweeps of
+curves, splines clamped by knot insertion first; its sweeps along the path as one rational quadratic
+B-spline; and its lofts as skins, ruled or through every section. Each is built at the origin and
+moved onto its frame. It answers the booleans, volume, area, mass properties and validity check with
+solidcore's own, and classifies points with its B-rep classifier; fillets, one radius or one per
+edge, and variable fillets with its fillet executive, on the edges the points name and no others;
+offsets and shells with its offset executive; and any similarity with its transform, a mirror as a
+scale of −1. The bounding box is solidcore's tight box. A plane section is solidcore's planar
+section curves, each sampled until every chord's middle lies within the tolerance, returned as the
+pieces they are.
+
+Two behaviours of solidcore 1.0.1 show in the results, as its source reads at that release. An
+offset, a shell or a mirror names its new curves under the edit's own identities while the body
+still declares the Notify scheme its checker reads, so the checker rejects every such body, though
+volume and area are right and each edge meets its vertices. And the zone tolerance is the constant
+`1e-5`, which its source names `SM_ZONE_TOL_3D`, not the context's value: every body starts at that
+tolerance whatever the kernel options say, and `set_tolerance` only raises entity tolerances. Its
+checker also repairs what it checks, so the adapter checks a fresh build and leaves the solid it
+measures as it was.
+
+Listed as unsupported, since solidcore 1.0.1 has no one call of the protocol's shape for it. Where
+solidcore reaches the same end another way, the adapter does not assemble it, so that what is scored
+is solidcore:
+
+- The distance between two solids, and the nearest point of a solid: its queries measure to a body's
+  boundary, where the protocol's measure to the solid and are zero inside it.
+- Chamfers by a setback: it sizes a chamfer by a rolling ball.
+- Stretches and shears: its transform scales along its own axes.
+- Every crossing of a ray: its ray fire gives the nearest.
+- Section areas, Betti numbers and outward normals: it gives section curves, a count of voids and a
+  surface's normal.
+- Splits: its plane cut keeps one side as an open sheet.
+- The booleans of many: its boolean of two lists gives a B-rep for each separate solid, and mapping
+  that onto the protocol's one solid is not worked out here.
+- Screws: it sweeps along a path or straight across, and has a helix curve to sweep along.
+- The interference of a pair, sweeps along a spline, face deletes, moves, offsets and thickens,
+  two-distance chamfers, drafts, slabs, sewing, meshes and STEP, which the released crate does not
+  offer. SolidCraft's repository has a STEP translator and a mesher, built on its in-tree solidcore
+  and not on the 1.0.1 release this adapter pins.
+
+A boolean consumes its operands, and `Brep::clone` keeps the original's geometry owners, which
+solidcore's checker rejects in the copy and in anything built from it. So the adapter keeps how each
+solid was made and rebuilds fresh operands for every boolean. Volume and area are integrated at an
+accuracy of 1e-7: at 1e-9 the integrator fails on a ball. The kernel runs at the suite's tolerance
+of 1e-7 mm, set through its options, though its bodies keep the 1e-5 mm noted above.
+
+## Setup
+
+The Rust toolchain [`rust-toolchain.toml`](rust-toolchain.toml) pins.
+
+## Usage
+
+The suite runs the adapter as a separate process. Build the adapter here, then run the suite from a
+checkout of [brep-conformance](https://github.com/springcraft-ai/brep-conformance) beside this one:
+
+```bash
+cargo build --release
+cd ../brep-conformance
+cargo build --release -p brep-conformance
+target/release/brep-conformance --adapter ../brep-conformance-solidcore/target/release/solidcore-adapter \
+    --out solidcore.json
+```
+
 ## Licences
 
 The adapter in this repository is under the MIT licence: see [LICENSE](LICENSE).

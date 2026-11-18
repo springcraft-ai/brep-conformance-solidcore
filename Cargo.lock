@@ -5,7 +5,8 @@ version = 4
 [[package]]
 name = "brep-protocol"
 version = "0.1.0"
-source = "git+https://github.com/springcraft-ai/brep-conformance?rev=63bdc8dd8aaa7a0c889b60c890f0c0844b6380b9#63bdc8dd8aaa7a0c889b60c890f0c0844b6380b9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39e1232e5d4abfd53ece0de551c551b80fc852416f291da9793e78760f610f69"
 dependencies = [
  "libc",
  "serde_json",

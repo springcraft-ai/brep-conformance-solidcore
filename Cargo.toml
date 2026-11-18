@@ -7,5 +7,5 @@ description = "The solidcore adapter for the B-rep protocol the conformance suit
 publish = false
 
 [dependencies]
-brep-protocol = { git = "https://github.com/springcraft-ai/brep-conformance", rev = "63bdc8dd8aaa7a0c889b60c890f0c0844b6380b9" }
+brep-protocol = "0.1"
 solidcore = "=1.0.1"

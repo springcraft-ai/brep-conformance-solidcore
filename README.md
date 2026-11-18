@@ -105,4 +105,4 @@ solidcore and is subject to solidcore's terms as well as this repository's.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Every commit needs a `Signed-off-by` line.
+See [CONTRIBUTING.md](CONTRIBUTING.md).

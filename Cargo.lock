@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "brep-protocol"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3986d289c9c68c93b6f978e66da7f6530598db1c10898d67b0d3248ef9099c52"
+checksum = "bc69a0ca36f027705416d616c3b6bbc6869359c661cd9ca388bfb28c074b5b78"
 dependencies = [
  "libc",
  "libm",

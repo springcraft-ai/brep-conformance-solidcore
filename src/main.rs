@@ -4,7 +4,6 @@
 use std::cell::RefCell;
 use std::process::ExitCode;
 use std::rc::Rc;
-use std::sync::Mutex;
 
 use brep_protocol::{Op, Refusal, model, model::Primitive, profile};
 use solidcore::EntityRef;
@@ -41,7 +40,7 @@ use solidcore::{EdgeId, FaceId};
 /// The integrator's accuracy: relative, as solidcore's own tests use.
 const ACCURACY: f64 = 1e-7;
 
-struct Solidcore(Mutex<solidcore::Kernel>);
+struct Solidcore(solidcore::Kernel);
 
 fn p3(a: model::Vec3) -> Point3 {
     Point3::new(a[0], a[1], a[2])
@@ -513,6 +512,12 @@ fn curves(p: &profile::Profile, z: f64) -> Result<Vec<Curve>, Refusal> {
                 profile::Seg::Gn { .. } => {
                     return Err("a blend-section segment".into());
                 }
+                // A kind of segment added to the protocol after this adapter was written.
+                _ => {
+                    return Err(Refusal::unsupported(
+                        "this kind of profile segment is not supported",
+                    ));
+                }
             }
         }
     }
@@ -627,12 +632,13 @@ fn make(k: &mut solidcore::Kernel, p: &Primitive) -> Result<Brep, Refusal> {
         Primitive::Loft {
             frame,
             profile,
-            scale,
             height,
+            top,
+            ..
         } => {
             let sections = [
                 profile_curves(k, profile, 0.0)?,
-                profile_curves(k, &profile.scaled(*scale), *height)?,
+                profile_curves(k, top, *height)?,
             ];
             let b = skin(k, &sections, 1)?;
             return place(k, b, frame);
@@ -660,8 +666,8 @@ fn make(k: &mut solidcore::Kernel, p: &Primitive) -> Result<Brep, Refusal> {
 }
 
 impl Solidcore {
-    fn solid(&self, recipe: Recipe) -> Result<Solid, Refusal> {
-        let k = &mut *self.0.lock().unwrap();
+    fn solid(&mut self, recipe: Recipe) -> Result<Solid, Refusal> {
+        let k = &mut self.0;
         let brep = build(k, &recipe)?;
         Ok(Solid {
             recipe: Rc::new(recipe),
@@ -669,11 +675,16 @@ impl Solidcore {
         })
     }
 
-    fn boolean_of(&self, op: Op, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn boolean_of(&mut self, op: Op, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         self.solid(Recipe::Boolean(op, a.recipe.clone(), b.recipe.clone()))
     }
 
-    fn blend(&self, s: &Solid, edges: &[model::Vec3], sizes: Vec<f64>) -> Result<Solid, Refusal> {
+    fn blend(
+        &mut self,
+        s: &Solid,
+        edges: &[model::Vec3],
+        sizes: Vec<f64>,
+    ) -> Result<Solid, Refusal> {
         if edges.is_empty() || sizes.len() != edges.len() {
             return Err("a blend names an edge and a size for each".into());
         }
@@ -719,27 +730,27 @@ impl brep_protocol::Kernel for Solidcore {
         "zone tolerance set to 1e-7 mm; bodies built at the default 1e-5 mm".into()
     }
 
-    fn make(&self, p: &Primitive) -> Result<Solid, Refusal> {
+    fn make(&mut self, p: &Primitive) -> Result<Solid, Refusal> {
         self.solid(Recipe::Make(p.clone()))
     }
 
-    fn union(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn union(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         self.boolean_of(Op::Union, a, b)
     }
 
-    fn intersection(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn intersection(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         self.boolean_of(Op::Intersection, a, b)
     }
 
-    fn difference(&self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
+    fn difference(&mut self, a: &Solid, b: &Solid) -> Result<Solid, Refusal> {
         self.boolean_of(Op::Difference, a, b)
     }
 
-    fn volume(&self, s: &Solid) -> Result<f64, Refusal> {
+    fn volume(&mut self, s: &Solid) -> Result<f64, Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok(0.0);
         }
-        let k = &*self.0.lock().unwrap();
+        let k = &self.0;
         let store = AttributeStore::new();
         let key_of = |_| ObjectKey(0);
         let attrs = PropertyAttributes {
@@ -749,28 +760,28 @@ impl brep_protocol::Kernel for Solidcore {
         brep_volume(k, &mut s.brep.borrow_mut(), ACCURACY, &attrs).map_err(err)
     }
 
-    fn area(&self, s: &Solid) -> Result<f64, Refusal> {
+    fn area(&mut self, s: &Solid) -> Result<f64, Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok(0.0);
         }
-        let k = &*self.0.lock().unwrap();
+        let k = &self.0;
         brep_area(k, &mut s.brep.borrow_mut(), ACCURACY).map_err(err)
     }
 
-    fn centroid(&self, s: &Solid) -> Result<Option<model::Vec3>, Refusal> {
+    fn centroid(&mut self, s: &Solid) -> Result<Option<model::Vec3>, Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok(None);
         }
-        let k = &*self.0.lock().unwrap();
+        let k = &self.0;
         let c = mass(k, &mut s.brep.borrow_mut(), Point3::new(0.0, 0.0, 0.0))?.centroid;
         Ok(Some([c.x, c.y, c.z]))
     }
 
-    fn inertia(&self, s: &Solid) -> Result<[[f64; 3]; 3], Refusal> {
+    fn inertia(&mut self, s: &Solid) -> Result<[[f64; 3]; 3], Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok([[0.0; 3]; 3]);
         }
-        let k = &*self.0.lock().unwrap();
+        let k = &self.0;
         let b = &mut s.brep.borrow_mut();
         let c = mass(k, b, Point3::new(0.0, 0.0, 0.0))?.centroid;
         // About the centroid: axial moments, and the raw products yz, zx and xy.
@@ -779,16 +790,16 @@ impl brep_protocol::Kernel for Solidcore {
         Ok([[i.x, -p.z, -p.y], [-p.z, i.y, -p.x], [-p.y, -p.x, i.z]])
     }
 
-    fn transform(&self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
+    fn transform(&mut self, s: &Solid, matrix: [[f64; 4]; 3]) -> Result<Solid, Refusal> {
         self.solid(Recipe::Move(matrix, s.recipe.clone()))
     }
 
-    fn fillet(&self, s: &Solid, edges: &[model::Vec3], radius: f64) -> Result<Solid, Refusal> {
+    fn fillet(&mut self, s: &Solid, edges: &[model::Vec3], radius: f64) -> Result<Solid, Refusal> {
         self.blend(s, edges, vec![radius; edges.len()])
     }
 
     fn fillet_radii(
-        &self,
+        &mut self,
         s: &Solid,
         edges: &[model::Vec3],
         radii: &[f64],
@@ -797,7 +808,7 @@ impl brep_protocol::Kernel for Solidcore {
     }
 
     fn fillet_variable(
-        &self,
+        &mut self,
         s: &Solid,
         edge: model::Vec3,
         from: model::Vec3,
@@ -813,11 +824,11 @@ impl brep_protocol::Kernel for Solidcore {
         })
     }
 
-    fn offset(&self, s: &Solid, distance: f64) -> Result<Solid, Refusal> {
+    fn offset(&mut self, s: &Solid, distance: f64) -> Result<Solid, Refusal> {
         self.solid(Recipe::Offset(s.recipe.clone(), distance))
     }
 
-    fn shell(&self, s: &Solid, open: &[model::Vec3], thickness: f64) -> Result<Solid, Refusal> {
+    fn shell(&mut self, s: &Solid, open: &[model::Vec3], thickness: f64) -> Result<Solid, Refusal> {
         self.solid(Recipe::Shell {
             base: s.recipe.clone(),
             open: open.to_vec(),
@@ -826,7 +837,7 @@ impl brep_protocol::Kernel for Solidcore {
     }
 
     fn loft_through(
-        &self,
+        &mut self,
         frame: &model::Frame,
         profiles: &[profile::Profile],
         heights: &[f64],
@@ -838,11 +849,11 @@ impl brep_protocol::Kernel for Solidcore {
         })
     }
 
-    fn classify(&self, s: &Solid, points: &[model::Vec3]) -> Result<Vec<model::Side>, Refusal> {
+    fn classify(&mut self, s: &Solid, points: &[model::Vec3]) -> Result<Vec<model::Side>, Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok(vec![model::Side::Out; points.len()]);
         }
-        let k = &*self.0.lock().unwrap();
+        let k = &self.0;
         let b = s.brep.borrow();
         let mut c = BrepClassifier::of_brep(&b);
         points
@@ -871,15 +882,15 @@ impl brep_protocol::Kernel for Solidcore {
             .collect()
     }
 
-    fn bounding_box(&self, s: &Solid) -> Result<[model::Vec3; 2], Refusal> {
-        let k = &mut *self.0.lock().unwrap();
+    fn bounding_box(&mut self, s: &Solid) -> Result<[model::Vec3; 2], Refusal> {
+        let k = &mut self.0;
         let b = brep_bounding_box(k, &s.brep.borrow(), true).map_err(err)?;
         let (lo, hi) = (b.min(), b.max());
         Ok([[lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]])
     }
 
     fn section(
-        &self,
+        &mut self,
         s: &Solid,
         origin: model::Vec3,
         normal: model::Vec3,
@@ -888,7 +899,7 @@ impl brep_protocol::Kernel for Solidcore {
         use solidcore::topology::brep::planar_section::{
             PlanarSectionOptions, SectionOutputs, create_planar_section_curves,
         };
-        let k = &mut *self.0.lock().unwrap();
+        let k = &mut self.0;
         let opts = PlanarSectionOptions {
             outputs: SectionOutputs {
                 curves_3d: true,
@@ -911,74 +922,73 @@ impl brep_protocol::Kernel for Solidcore {
         Ok(pieces)
     }
 
-    fn check(&self, s: &Solid) -> Result<Vec<String>, Refusal> {
+    fn check(&mut self, s: &Solid) -> Result<Vec<String>, Refusal> {
         if is_empty(&s.brep.borrow()) {
             return Ok(Vec::new());
         }
         // The checker repairs what it checks (reversed curves, control nets that turn back), so
         // it runs on a fresh build and leaves the solid the other answers measure as it was.
-        let k = &mut *self.0.lock().unwrap();
+        let k = &mut self.0;
         let mut fresh = build(k, &s.recipe)?;
         Ok(check_brep(k, &mut fresh, CheckLevel::Level2)
             .map_err(err)?
             .lines())
     }
 
-    fn unsupported(&self) -> Vec<String> {
+    // The functions of the protocol that solidcore has one call for. The others are left out:
+    //
+    // - Operations the solidcore 1.0.1 crate does not have, STEP and meshing among them:
+    //   fillet_g2, fillet_conic, fillet_setback, fillet_setback_g2, fillet_faces, full_round,
+    //   curvature, project, slab, offset_faces, chamfer_two, write_step, read_step, mesh, display,
+    //   draft, delete_faces, move_faces, thicken, sew, sweep_path and interference.
+    // - Operations solidcore reaches in its own way, where the protocol asks for one call of
+    //   another shape. The adapter does not assemble them, so that what is scored is solidcore.
+    //   - screw: it sweeps a profile along a path or straight across; the protocol's screw turns
+    //     the profile about an axis as it rises.
+    //   - split: its plane cut keeps one side as an open sheet; the protocol asks for both sides
+    //     as solids.
+    //   - section_area: its planar section gives curves; the protocol asks for the area they
+    //     bound.
+    //   - raycast: its ray fire gives the nearest crossing; the protocol asks for every one.
+    //   - betti: its census counts voids; the protocol also asks for pieces and tunnels.
+    //   - normal: it gives a surface's normal; the protocol asks for the solid's outward one.
+    //   - affine: its transform scales along its own axes; the protocol's affine map may shear.
+    //   - chamfer and chamfer_distances: it sizes a chamfer by a rolling ball; the protocol sizes
+    //     one by its setback.
+    //   - union_all and difference_all: its boolean of two lists gives a B-rep for each separate
+    //     solid; the protocol's boolean of many gives one solid. Mapping one onto the other is not
+    //     worked out here.
+    //   - distance and closest: its distance and closest-point queries measure to a body's
+    //     boundary; the protocol's measure to the solid, and are zero inside it.
+    fn supports(&self) -> Vec<String> {
         [
-            // Operations the solidcore 1.0.1 crate does not have, STEP and meshing among them.
-            "fillet_g2",
-            "fillet_conic",
-            "fillet_setback",
-            "fillet_setback_g2",
-            "fillet_faces",
-            "full_round",
-            "curvature",
-            "project",
-            "slab",
-            "offset_faces",
-            "chamfer_two",
-            "write_step",
-            "read_step",
-            "mesh",
-            "display",
-            "draft",
-            "delete_faces",
-            "move_faces",
-            "thicken",
-            "sew",
-            "sweep_path",
-            "interference",
-            // Operations solidcore reaches in its own way, where the protocol asks for one call of
-            // another shape. The adapter does not assemble them, so that what is scored is
-            // solidcore.
-            // It sweeps a profile along a path or straight across; the protocol's screw turns the
-            // profile about an axis as it rises.
-            "screw",
-            // Its plane cut keeps one side as an open sheet; the protocol asks for both sides as
-            // solids.
-            "split",
-            // Its planar section gives curves; the protocol asks for the area they bound.
-            "section_area",
-            // Its ray fire gives the nearest crossing; the protocol asks for every one.
-            "raycast",
-            // Its census counts voids; the protocol also asks for pieces and tunnels.
-            "betti",
-            // It gives a surface's normal; the protocol asks for the solid's outward one.
-            "normal",
-            // Its transform scales along its own axes; the protocol's affine map may shear.
-            "affine",
-            // It sizes a chamfer by a rolling ball; the protocol sizes one by its setback.
-            "chamfer",
-            "chamfer_distances",
-            // Its boolean of two lists gives a B-rep for each separate solid; the protocol's
-            // boolean of many gives one solid. Mapping one onto the other is not worked out here.
-            "union_all",
-            "difference_all",
-            // Its distance and closest-point queries measure to a body's boundary; the protocol's
-            // measure to the solid, and are zero inside it.
-            "distance",
-            "closest",
+            "box",
+            "cylinder",
+            "sphere",
+            "torus",
+            "cone",
+            "extrude",
+            "revolve",
+            "loft",
+            "loft_through",
+            "sweep",
+            "union",
+            "intersection",
+            "difference",
+            "fillet",
+            "fillet_radii",
+            "fillet_variable",
+            "offset",
+            "shell",
+            "volume",
+            "area",
+            "classify",
+            "check",
+            "centroid",
+            "inertia",
+            "section",
+            "bounding_box",
+            "transform",
         ]
         .map(String::from)
         .to_vec()
@@ -998,8 +1008,8 @@ fn main() -> ExitCode {
         },
         ..solidcore::KernelOptions::default()
     };
-    let kernel = Solidcore(Mutex::new(solidcore::Kernel::new(&options)));
-    match brep_protocol::serve(&kernel) {
+    let mut kernel = Solidcore(solidcore::Kernel::new(&options));
+    match brep_protocol::serve(&mut kernel) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e}");

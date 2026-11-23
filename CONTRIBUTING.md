@@ -8,7 +8,7 @@ as pass-through.
 
 - **Corrections.** A place where the adapter drives solidcore wrongly, or calls something other than
   the kernel's one call for a function.
-- **New calls.** A function the adapter lists as unsupported that a newer solidcore release now
+- **New calls.** A function the adapter lists as unsupported that a newer SolidCraft release now
   offers in one call.
 
 What does not belong: work the kernel does not do itself. The adapter is pass-through, as the

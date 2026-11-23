@@ -1,5 +1,5 @@
-//! The solidcore adapter: answers the B-rep protocol's requests on stdin and stdout, so the
-//! conformance suite can drive this kernel.
+//! The SolidCraft adapter: answers the B-rep protocol's requests on stdin and stdout with the
+//! solidcore kernel SolidCraft ships, so the conformance suite can drive that kernel.
 
 use std::cell::RefCell;
 use std::process::ExitCode;
@@ -36,6 +36,10 @@ use solidcore::sweep::api_surfaces::create_skin_primitive;
 use solidcore::topology::brep::validation::{CheckLevel, check_brep};
 use solidcore::{Brep, Point3, Vec3};
 use solidcore::{EdgeId, FaceId};
+
+/// https://github.com/tangency-labs/solidcraft/releases/tag/v0.47.0, the `solidcore` rev in Cargo.toml.
+/// The solidcore crate's own version does not move with SolidCraft's releases, so this names them.
+const VERSION: &str = "0.47.0";
 
 /// The integrator's accuracy: relative, as solidcore's own tests use.
 const ACCURACY: f64 = 1e-7;
@@ -715,11 +719,11 @@ impl brep_protocol::Kernel for Solidcore {
     type Solid = Solid;
 
     fn name(&self) -> String {
-        "solidcore".into()
+        "solidcraft".into()
     }
 
     fn version(&self) -> String {
-        "1.0.1".into()
+        VERSION.into()
     }
 
     fn tolerance(&self) -> f64 {
@@ -937,7 +941,8 @@ impl brep_protocol::Kernel for Solidcore {
 
     // The functions of the protocol that solidcore has one call for. The others are left out:
     //
-    // - Operations the solidcore 1.0.1 crate does not have, STEP and meshing among them:
+    // - Operations the solidcore crate did not have at 1.0.1, STEP and meshing among them (not yet
+    //   reviewed against SolidCraft v0.47.0):
     //   fillet_g2, fillet_conic, fillet_setback, fillet_setback_g2, fillet_faces, full_round,
     //   curvature, project, slab, offset_faces, chamfer_two, write_step, read_step, mesh, display,
     //   draft, delete_faces, move_faces, thicken, sew, sweep_path and interference.

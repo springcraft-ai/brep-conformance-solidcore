@@ -1,8 +1,15 @@
 # brep-conformance-solidcore
 
 The [brep-conformance](https://github.com/springcraft-ai/brep-conformance) adapter for
+[SolidCraft](https://github.com/tangency-labs/solidcraft)'s kernel,
 [solidcore](https://github.com/tangency-labs/solidcore): it puts solidcore behind the suite's
 protocol, so that the suite can score it.
+
+The suite lists it as `solidcraft`, at SolidCraft's release. solidcore is developed inside
+SolidCraft's repository, in its `solidcore/` folder, and mirrored to its own repository from there.
+The solidcore crate's version tracks the upstream release it was ported from, not the kernel's own
+changes, so it stays at 1.0.1 while the kernel moves. A SolidCraft release names one state of the
+kernel, and the adapter pins that release's commit: v0.47.0 now.
 
 ## Who maintains this
 
@@ -38,7 +45,10 @@ scale of −1. The bounding box is solidcore's tight box. A plane section is sol
 section curves, each sampled until every chord's middle lies within the tolerance, returned as the
 pieces they are.
 
-Two behaviours of solidcore 1.0.1 show in the results, as its source reads at that release. An
+Two behaviours of solidcore showed in the results at 1.0.1, the crates.io release the adapter
+pinned before SolidCraft v0.47.0, as its source read at that release. They have not been checked
+again at v0.47.0; the adapter still answers as it did, and its first results there will show
+whether they remain. An
 offset, a shell or a mirror names its new curves under the edit's own identities while the body
 still declares the Notify scheme its checker reads, so the checker rejects every such body, though
 volume and area are right and each edge meets its vertices. And the zone tolerance is the constant
@@ -47,7 +57,8 @@ tolerance whatever the kernel options say, and `set_tolerance` only raises entit
 checker also repairs what it checks, so the adapter checks a fresh build and leaves the solid it
 measures as it was.
 
-Listed as unsupported, since solidcore 1.0.1 has no one call of the protocol's shape for it. Where
+Listed as unsupported, since solidcore 1.0.1 had no one call of the protocol's shape for it. The
+list has not yet been reviewed against SolidCraft v0.47.0. Where
 solidcore reaches the same end another way, the adapter does not assemble it, so that what is scored
 is solidcore:
 
@@ -63,9 +74,9 @@ is solidcore:
   that onto the protocol's one solid is not worked out here.
 - Screws: it sweeps along a path or straight across, and has a helix curve to sweep along.
 - The interference of a pair, sweeps along a spline, face deletes, moves, offsets and thickens,
-  two-distance chamfers, drafts, slabs, sewing, meshes and STEP, which the released crate does not
-  offer. SolidCraft's repository has a STEP translator and a mesher, built on its in-tree solidcore
-  and not on the 1.0.1 release this adapter pins.
+  two-distance chamfers, drafts, slabs, sewing, meshes and STEP, which the solidcore crate did not
+  offer at 1.0.1. SolidCraft's repository has a STEP translator and a mesher in crates of their own
+  beside the kernel's, which this adapter does not link.
 
 A boolean consumes its operands, and `Brep::clone` keeps the original's geometry owners, which
 solidcore's checker rejects in the copy and in anything built from it. So the adapter keeps how each
@@ -87,7 +98,7 @@ cargo build --release
 cd ../brep-conformance
 cargo build --release -p brep-conformance
 target/release/brep-conformance --adapter ../brep-conformance-solidcore/target/release/solidcore-adapter \
-    --out solidcore.json
+    --out solidcraft.json
 ```
 
 ## Licences
@@ -99,11 +110,12 @@ The adapter in this repository is under either the MIT licence
 Either licence covers the adapter and nothing else. It does not cover the kernel, and nothing here
 relicenses the kernel.
 
-solidcore is a separate work under its own licence. Its crate declares `Apache-2.0`; its repository
-is the authority on that, not this page.
+solidcore is a separate work under its own licence. Its crate in SolidCraft's repository declares
+`Apache-2.0`; that repository is the authority on that, not this page.
 
-Building the adapter downloads solidcore from crates.io and links it in, so a built adapter contains
-solidcore and is subject to solidcore's terms as well as this repository's.
+Building the adapter downloads SolidCraft's repository at the pinned commit and links its solidcore
+crate in, so a built adapter contains solidcore and is subject to solidcore's terms as well as this
+repository's.
 
 ## Contributing
 

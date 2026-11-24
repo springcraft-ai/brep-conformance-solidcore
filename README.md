@@ -1,5 +1,8 @@
 # brep-conformance-solidcore
 
+> [!IMPORTANT]
+> Moved to [brep-conformance-solidcraft](https://github.com/springcraft-ai/brep-conformance-solidcraft).
+
 The [brep-conformance](https://github.com/springcraft-ai/brep-conformance) adapter for
 [solidcore](https://github.com/tangency-labs/solidcore): it puts solidcore behind the suite's
 protocol, so that the suite can score it.

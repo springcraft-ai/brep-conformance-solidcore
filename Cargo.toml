@@ -2,7 +2,7 @@
 name = "solidcore-adapter"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 description = "The solidcore adapter for the B-rep protocol the conformance suite drives"
 publish = false
 
